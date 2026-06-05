@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ガラポン抽選会</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+    <div id="error-screen" class="container hidden">
+        <div class="error-box">
+            <h2>ご注意</h2>
+            <p>QRコードからアクセスしてください。</p>
+        </div>
+    </div>
+
+    <div id="main-screen" class="container hidden">
+        <header>
+            <h1>ガラポン大抽選会</h1>
+        </header>
+
+        <main>
+            <div class="garapon-container">
+                <div id="garapon-body" class="garapon-body">
+                    <div class="beads border-1"></div>
+                    <div class="beads border-2"></div>
+                    <div class="beads border-3"></div>
+                </div>
+                <div class="garapon-stand"></div>
+                <div class="garapon-exit"></div>
+            </div>
+
+            <div class="button-area">
+                <button id="spin-button" class="spin-btn">抽選する</button>
+            </div>
+        </main>
+    </div>
+
+    <div id="result-popup" class="popup hidden">
+        <div class="popup-content">
+            <h2 id="result-title">見事当選！</h2>
+            <div id="result-grade" class="result-grade">〇等</div>
+            <div id="result-item" class="result-item">景品名</div>
+            
+            <div class="staff-notice">
+                <p>⚠️ スタッフにこの画面を見せてください</p>
+            </div>
+            
+            <p id="result-date" class="result-date"></p>
+        </div>
+        <div id="confetti-container"></div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
