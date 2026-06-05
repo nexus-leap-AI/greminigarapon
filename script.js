@@ -9,8 +9,7 @@ const CONFIG = {
     messages: {
         titleNew: "見事当選！",
         titleAlready: "本日の抽選は完了しています",
-        staffNotice: "⚠️ スタッフにこの画面を見せてください",
-        errorParam: "QRコードからアクセスしてください。"
+        staffNotice: "⚠️ スタッフにこの画面を見せてください"
     },
 
     // 等級ごとの設定（当選確率、名前、景品リスト）
@@ -19,7 +18,7 @@ const CONFIG = {
         {
             grade: "1等",
             probability: 5, // 5%の確率
-            items: ["おもちゃA", "日用品A"] // この中からランダムで1つ選ばれます
+            items: ["おもちゃA", "日用品A"]
         },
         {
             grade: "2等",
@@ -45,7 +44,6 @@ const CONFIG = {
 
 document.addEventListener("DOMContentLoaded", () => {
     // HTML要素の取得
-    const errorScreen = document.getElementById("error-screen");
     const mainScreen = document.getElementById("main-screen");
     const spinButton = document.getElementById("spin-button");
     const garaponBody = document.getElementById("garapon-body");
@@ -55,10 +53,6 @@ document.addEventListener("DOMContentLoaded", () => {
     const resultItem = document.getElementById("result-item");
     const resultDate = document.getElementById("result-date");
     const confettiContainer = document.getElementById("confetti-container");
-
-    // URLからパラメータ「user」を取得
-    const urlParams = new URLSearchParams(window.location.search);
-    const userId = urlParams.get("user");
 
     // 今日の日付を取得 (フォーマット: YYYY-MM-DD)
     const getTodayString = () => {
@@ -71,42 +65,49 @@ document.addEventListener("DOMContentLoaded", () => {
 
     const todayStr = getTodayString();
 
-    // 1. URLパラメータチェック
+    // URLからパラメータ「user」を取得
+    const urlParams = new URLSearchParams(window.location.search);
+    let userId = urlParams.get("user");
+
+    // 【修正ポイント】パラメータがない場合、自動でゲストIDを発行
     if (!userId || userId.trim() === "") {
-        // パラメータがない場合はエラー画面を表示して終了
-        errorScreen.classList.remove("hidden");
-        return;
+        // すでにブラウザ（セッション）用に発行済みのゲストIDがあるか確認
+        let sessionGuestId = sessionStorage.getItem("garapon_guest_id");
+        
+        if (!sessionGuestId) {
+            // なければ新規作成（例: guest_20260605_84920）
+            const randomId = Math.floor(10000 + Math.random() * 90000); // 5桁のランダム数字
+            const dateClean = todayStr.replace(/-/g, ""); // ハイフン無しの真面目な日付
+            sessionGuestId = `guest_${dateClean}_${randomId}`;
+            // タブを閉じるまでは同じIDを維持するように保持
+            sessionStorage.setItem("garapon_guest_id", sessionGuestId);
+        }
+        
+        userId = sessionGuestId;
     }
 
-    // パラメータがある場合はメイン画面を表示
+    // 必ずメイン画面を表示する（エラー画面は使わなくなります）
     mainScreen.classList.remove("hidden");
 
-    // 2. localStorageを使った1日1回制限のチェック
-    // 保存データキー: garapon_user_【ユーザーID】
+    // 1日1回制限のチェック
     const storageKey = `garapon_user_${userId}`;
     const savedData = localStorage.getItem(storageKey);
 
     if (savedData) {
         const parsedData = JSON.parse(savedData);
-        // 保存されている日付が今日と同じかチェック
         if (parsedData.date === todayStr) {
-            // すでに今日抽選済みの場合は、即座に過去の結果をポップアップ表示
+            // すでに今日抽選済みの場合は、過去の結果をポップアップ表示
             showResultPopup(parsedData.grade, parsedData.item, parsedData.formattedDate, true);
         }
     }
 
-    // 3. 抽選ボタンが押されたときの処理
+    // 抽選ボタンが押されたときの処理
     spinButton.addEventListener("click", () => {
-        // 連打防止：ボタンを無効化
         spinButton.disabled = true;
-
-        // ガラポン回転アニメーションを開始
         garaponBody.classList.add("spinning");
 
-        // 確率に基づいて抽選を実行
         const lotteryResult = executeLottery();
 
-        // 抽選結果と現在時刻を保存用にまとめる
         const now = new Date();
         const formattedDate = `${now.getFullYear()}/${now.getMonth() + 1}/${now.getDate()} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
         
@@ -117,26 +118,20 @@ document.addEventListener("DOMContentLoaded", () => {
             formattedDate: formattedDate
         };
 
-        // localStorageに結果を保存（1日1回制限用）
         localStorage.setItem(storageKey, JSON.stringify(dataToSave));
 
-        // 設定された秒数（3〜5秒）が経過した後に結果を表示
         setTimeout(() => {
-            // アニメーションをストップ
             garaponBody.classList.remove("spinning");
-            // 結果ポップアップを表示（新規当選なので isAlreadyPlayed は false）
             showResultPopup(lotteryResult.grade, lotteryResult.item, formattedDate, false);
         }, CONFIG.spinDuration);
     });
 
-    // 4. 抽選ロジック本体
+    // 抽選ロジック本体
     function executeLottery() {
-        // 0〜99の乱数を生成
         const randomNum = Math.floor(Math.random() * 100);
         let currentRange = 0;
         let selectedPrize = null;
 
-        // まず確率を元に「等級」を決定
         for (const prize of CONFIG.prizes) {
             currentRange += prize.probability;
             if (randomNum < currentRange) {
@@ -145,12 +140,10 @@ document.addEventListener("DOMContentLoaded", () => {
             }
         }
 
-        // 万が一漏れた場合の安全策（末尾の等級にする）
         if (!selectedPrize) {
             selectedPrize = CONFIG.prizes[CONFIG.prizes.length - 1];
         }
 
-        // 決定した等級のアイテムリストから、さらにランダムで1つ選ぶ
         const items = selectedPrize.items;
         const randomItemIndex = Math.floor(Math.random() * items.length);
         const selectedItem = items[randomItemIndex];
@@ -161,43 +154,36 @@ document.addEventListener("DOMContentLoaded", () => {
         };
     }
 
-    // 5. 結果ポップアップ表示処理
+    // 結果ポップアップ表示処理
     function showResultPopup(grade, item, dateText, isAlreadyPlayed) {
-        // 初めてか、2回目以降かでタイトルを変更
         if (isAlreadyPlayed) {
             resultTitle.textContent = CONFIG.messages.titleAlready;
-            spinButton.disabled = true; // 2回目以降ならメイン画面のボタンもロック
+            spinButton.disabled = true;
         } else {
             resultTitle.textContent = CONFIG.messages.titleNew;
-            // 新規当選時のみ紙吹雪を降らせる
             startConfetti();
         }
 
-        // 等級と景品名を画面にセット
         resultGrade.textContent = grade;
         resultItem.textContent = item;
         resultDate.textContent = `確認日時：${dateText}`;
-
-        // ポップアップを表示
         resultPopup.classList.remove("hidden");
     }
 
-    // 6. 紙吹雪の演出エフェクト
+    // 紙吹雪の演出エフェクト
     function startConfetti() {
         const colors = ['#ffeb3b', '#ff5722', '#e91e63', '#00bcd4', '#4caf50', '#ffffff'];
-        const confettiCount = 80; // 紙吹雪の枚数
+        const confettiCount = 80;
 
         for (let i = 0; i < confettiCount; i++) {
             const confetti = document.createElement("div");
             confetti.classList.add("confetti");
             
-            // ランダムな配置とアニメーションの設定
             confetti.style.left = Math.random() * 100 + "vw";
             confetti.style.backgroundColor = colors[Math.floor(Math.random() * colors.length)];
             confetti.style.animationDelay = Math.random() * 2 + "s";
-            confetti.style.animationDuration = (Math.random() * 2 + 2) + "s"; // 2〜4秒で落下
+            confetti.style.animationDuration = (Math.random() * 2 + 2) + "s";
             
-            // 形（正方形や長方形など）をランダムに
             confetti.style.width = (Math.random() * 8 + 6) + "px";
             confetti.style.height = (Math.random() * 8 + 6) + "px";
 
